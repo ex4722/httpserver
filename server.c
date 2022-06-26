@@ -18,32 +18,38 @@ int main (int argc, char *argv[])
     struct sockaddr_in address;
     int socketfd, new_socket, file_fd;
 
-    address.sin_family = AF_INET;
-    address.sin_port = htons(PORT);
-    address.sin_addr.s_addr = htonl(INADDR_ANY);
 
+    // Create socket
     if ( (socketfd = socket(AF_INET, SOCK_STREAM, 0 )) < 0){
         printf("SOCKET FAILED\n");
         return -1;
     }
 
+    // Get rid of stupid timeout
     if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0){
         puts("setsockopt(SO_REUSEADDR) failed");
         return -1;
     }
 
+    // Setup address struct for bind
+    address.sin_family = AF_INET;
+    address.sin_port = htons(PORT);
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
     if (-1 == bind(socketfd, (struct sockaddr*)&address , sizeof(address))){
         printf("BIND FAILED\n");
         return -1;
     }
 
+    // Mark the socket as listenable
     if (-1 == listen(socketfd,3)){
         printf("LISTEN FAILED\n");
         return -1;
     }
-    while (1){
 
+    // Server loop
+    while (1){
         puts("AWATING CONNECTION");
+        // New connection created, socket is one to rd/w to
         if ((new_socket = accept(socketfd, (struct sockaddr *)&address, (socklen_t*)&address))<0)
         {
             printf("LISTEN FAILED\n");
@@ -54,16 +60,17 @@ int main (int argc, char *argv[])
         read(new_socket, request, 0x100);
         char * token = strtok(request, "\n");
 
-        /* while ((token = strtok(NULL, "\n")) != 0){ */
-        /*     printf("%s\n", token); */
-        /* } */
+        // Parse request
+        while ((token = strtok(NULL, "\n")) != 0){
+            printf("%s\n", token);
+        }
 
         char responce[0x100] = {0};
         char content[0x100] = {0};
+        // Used for sprintfing
         char tmp[0x100] = {0};
 
-        /* file_fd = open(argv[1], O_RDONLY); */
-        file_fd = open("./foo.html", O_RDONLY);
+        file_fd = open("./www/foo.html", O_RDONLY);
         char buf;
         while (0 < read(file_fd,&buf, 1) ){
             strcat(content, &buf);
@@ -72,8 +79,8 @@ int main (int argc, char *argv[])
 
         strcat(responce, "HTTP/1.1 200 OK\n");
         strcat(responce, "Connection: close\n");
-        /* sprintf(tmp,"Date: %s\n", generate_date()); */
-        /* strcat(responce,tmp); */ 
+        sprintf(tmp,"Date: %s\n", generate_date());
+        strcat(responce,tmp); 
         sprintf(tmp,"Content-Length: %li\n", strlen(content));
         strcat(responce,tmp); 
 
@@ -82,7 +89,6 @@ int main (int argc, char *argv[])
         strcat(responce, content);
         strcat(responce, "\n\n");
         puts("WRITING RESPONCE");
-        /* puts(responce); */
 
         write(new_socket, responce, sizeof(responce));
 
