@@ -13,6 +13,11 @@ const int PORT = 9001;
 
 char * generate_date();
 
+struct http_request {
+    int status_code;
+    char path[0x100];
+};
+
 int main (int argc, char *argv[])
 {
     struct sockaddr_in address;
@@ -56,43 +61,67 @@ int main (int argc, char *argv[])
             return -1;
         }
 
-        char request[0x100] = {0};
-        read(new_socket, request, 0x100);
+        char request[0x1000] = {0};
+        read(new_socket, request, 0x1000);
         char * token = strtok(request, "\n");
+        char header[0x100] = {0}, value[0x100] = {0};
+        char host[0x100] = {0}, type[0x100] = {0};
+        char user_agent[0x100] = {0}, path[0x100] = {0}, version[0x100] = {0};
+        int status_code;
 
         // Parse request
-        while ((token = strtok(NULL, "\n")) != 0){
-            printf("%s\n", token);
+        sscanf(token, "GET /%s %s", path, version);
+        printf("PATH: %s\n", path);
+
+        while (strcmp(token, "\r") != 0){
+            sscanf(token, "%[^:]: %s", header, value);
+            printf("HEADER: %s\nVALUE: %s\n", header, value);
+            token = strtok(NULL, "\n");
         }
 
-        char responce[0x100] = {0};
-        char content[0x100] = {0};
+        char responce[0x1000] = {0};
+        char content[0x1000] = {0};
         // Used for sprintfing
         char tmp[0x100] = {0};
+        char file_contents[0x2] = {0};
 
-        file_fd = open("./www/foo.html", O_RDONLY);
-        char buf;
-        while (0 < read(file_fd,&buf, 1) ){
-            strcat(content, &buf);
+        status_code = 200;
+        if ((file_fd = open(path, O_RDONLY)) < 0){
+            puts("FILE NOT EXIST");
+            status_code = 404;
+            file_fd = open("404.html", O_RDONLY);
+        }
+        while (0 < read(file_fd,&file_contents, 1) ){
+            strcat(content, file_contents);
         }
 
-
-        strcat(responce, "HTTP/1.1 200 OK\n");
+        switch (status_code) {
+            case 404:
+                strcat(responce, "HTTP/1.1 404 Not Found\n");
+                break;
+            case 200:
+                strcat(responce, "HTTP/1.1 200 OK\n");
+                break;
+            default:
+                strcat(responce, "HTTP/1.1 1337 WHAT\n");
+                break;
+        }
         strcat(responce, "Connection: close\n");
+        strcat(responce,"Server: Eddie's 1337 server"); 
         sprintf(tmp,"Date: %s\n", generate_date());
         strcat(responce,tmp); 
         sprintf(tmp,"Content-Length: %li\n", strlen(content));
         strcat(responce,tmp); 
 
         strcat(responce, "\n\n");
+
         // Content starts here
         strcat(responce, content);
         strcat(responce, "\n\n");
         puts("WRITING RESPONCE");
+        puts(responce);
 
         write(new_socket, responce, sizeof(responce));
-
-
     }
     close(socketfd);
     close(new_socket);
